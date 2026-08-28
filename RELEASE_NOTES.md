@@ -29,16 +29,37 @@ Required files:
 - `Lyricrafter-Windows-x64-Setup-1.bin`
 - `Lyricrafter-Windows-x64-Setup-2.bin`
 
-`SHA256SUMS.txt` is provided for integrity verification.
+Keep all three files together. The installer is split because the bundled NVIDIA
+CUDA runtime makes the compressed Windows payload larger than GitHub's 2 GiB
+per-file release limit. The `.bin` files are installer data, not separate apps.
 
 The application and CUDA-capable AI runtime are included. Whisper, translation, and separation model weights are downloaded from inside Lyricrafter as needed.
 
+## macOS Download
+
+- Apple Silicon (M1 or newer): `Lyricrafter-macOS-arm64.zip`
+- Intel: `Lyricrafter-macOS-x86_64.zip`
+
+Extract the ZIP and open `Lyricrafter.app`. These packages use Apple's native
+CPU/MPS runtime and therefore do not contain the Windows NVIDIA CUDA libraries.
+
+## Linux Download
+
+- x86-64: `Lyricrafter-Linux-x64.tar.gz`
+
+Extract the archive and run `Lyricrafter/Lyricrafter`. The Linux release uses a
+portable CPU runtime; CUDA remains available when running the Python source with
+a compatible CUDA-enabled environment.
+
+`SHA256SUMS.txt` contains integrity hashes for every release file.
+
 ## Verification
 
-- 76 automated tests pass.
-- Frozen Windows GUI startup verified.
-- Bundled FFmpeg and native AI dependencies verified.
-- A real Whisper model was downloaded by the frozen executable, loaded for CPU inference, and deleted successfully.
+- 77 automated tests pass.
+- Windows x64, Linux x64, macOS Apple Silicon, and macOS Intel builds pass the frozen package and UI checks.
+- Bundled FFmpeg, translation runtime, writable model storage, model catalog, and native AI dependencies are verified on all four targets.
+- A real Whisper model was downloaded, loaded for CPU inference, and deleted by the frozen Windows, Linux, and Apple Silicon packages.
+- The Windows installer was installed to an isolated directory, launched, validated, and uninstalled successfully.
 
 ## Notes
 
