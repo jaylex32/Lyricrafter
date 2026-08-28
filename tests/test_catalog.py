@@ -63,3 +63,30 @@ def test_model_manager_resolves_legacy_hugging_face_cache(tmp_path, monkeypatch)
 
     assert manager.installed_faster_whisper_path("large-v2") is None
     assert manager.resolved_faster_whisper_path("large-v2") == snapshot
+
+
+def test_model_download_retries_transient_failure(tmp_path, monkeypatch) -> None:
+    manager = ModelManager(tmp_path)
+    attempts = 0
+    messages: list[str] = []
+
+    def operation():
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise OSError("temporary DNS failure")
+        return tmp_path / "downloaded"
+
+    monkeypatch.setattr("app.models.catalog.time.sleep", lambda _seconds: None)
+    result = manager._download_with_retries(
+        "tiny",
+        lambda _percent, message: messages.append(message),
+        operation,
+    )
+
+    assert result == tmp_path / "downloaded"
+    assert attempts == 3
+    assert messages == [
+        "tiny: network retry 2/3 in 2s",
+        "tiny: network retry 3/3 in 4s",
+    ]

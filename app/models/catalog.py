@@ -145,28 +145,23 @@ class ModelManager:
             model_id,
             model_id if "/" in model_id else f"Systran/faster-whisper-{model_id}",
         )
-        if progress:
-            return self._snapshot_download_with_progress(repo_id, model_id, progress)
-
-        try:
-            from faster_whisper.utils import download_model
-
-            return Path(download_model(model_id, cache_dir=str(self.faster_whisper_cache_dir())))
-        except ImportError:
-            pass
-
         try:
             from huggingface_hub import snapshot_download
         except ImportError as exc:
             raise RuntimeError("faster-whisper or huggingface-hub is required for model downloads.") from exc
 
-        return Path(
-            snapshot_download(
-                repo_id=repo_id,
-                cache_dir=str(self.faster_whisper_cache_dir()),
-                local_files_only=False,
+        def download() -> Path:
+            if progress:
+                return self._snapshot_download_with_progress(repo_id, model_id, progress)
+            return Path(
+                snapshot_download(
+                    repo_id=repo_id,
+                    cache_dir=str(self.faster_whisper_cache_dir()),
+                    local_files_only=False,
+                )
             )
-        )
+
+        return self._download_with_retries(model_id, progress, download)
 
     def _snapshot_download_with_progress(
         self,
@@ -248,21 +243,45 @@ class ModelManager:
         target = self.whisper_cpp_model_path(model_id)
         target.parent.mkdir(parents=True, exist_ok=True)
         url = f"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-{model_id}.bin"
-        if progress:
-            progress(0, f"{model_id}: preparing download")
+        def download() -> Path:
+            if progress:
+                progress(0, f"{model_id}: preparing download")
 
-            def reporthook(block_count: int, block_size: int, total_size: int) -> None:
-                if total_size <= 0:
-                    return
-                downloaded = min(block_count * block_size, total_size)
-                percent = max(0, min(100, int((downloaded / total_size) * 100)))
-                progress(percent, f"{model_id}: downloading ({percent}%)")
+                def reporthook(block_count: int, block_size: int, total_size: int) -> None:
+                    if total_size <= 0:
+                        return
+                    downloaded = min(block_count * block_size, total_size)
+                    percent = max(0, min(100, int((downloaded / total_size) * 100)))
+                    progress(percent, f"{model_id}: downloading ({percent}%)")
 
-            urllib.request.urlretrieve(url, target, reporthook=reporthook)
-            progress(100, f"{model_id}: download complete")
-        else:
-            urllib.request.urlretrieve(url, target)
-        return target
+                urllib.request.urlretrieve(url, target, reporthook=reporthook)
+                progress(100, f"{model_id}: download complete")
+            else:
+                urllib.request.urlretrieve(url, target)
+            return target
+
+        return self._download_with_retries(model_id, progress, download)
+
+    def _download_with_retries(
+        self,
+        model_id: str,
+        progress: DownloadProgressCallback | None,
+        operation: Callable[[], Path],
+        attempts: int = 3,
+    ) -> Path:
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            try:
+                return operation()
+            except Exception as exc:
+                last_error = exc
+                if attempt >= attempts:
+                    break
+                delay = 2 ** attempt
+                if progress:
+                    progress(0, f"{model_id}: network retry {attempt + 1}/{attempts} in {delay}s")
+                time.sleep(delay)
+        raise RuntimeError(f"{model_id}: download failed after {attempts} attempts: {last_error}") from last_error
 
 
 def _expected_snapshot_bytes(repo_id: str, cache_dir: Path, allow_patterns: list[str]) -> int:

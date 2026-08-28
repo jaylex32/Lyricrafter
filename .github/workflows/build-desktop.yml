@@ -72,9 +72,9 @@ jobs:
         if: matrix.name != 'macOS Intel'
         run: python scripts/test_packaged_app.py --model-download
 
-      - name: Test Intel package and model download
+      - name: Test Intel package runtime
         if: matrix.name == 'macOS Intel'
-        run: python scripts/test_packaged_app.py --model-download-only
+        run: python scripts/test_packaged_app.py
 
       - name: Install Inno Setup
         if: runner.os == 'Windows'
