@@ -23,6 +23,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--network", action="store_true")
     parser.add_argument("--model-download", action="store_true")
+    parser.add_argument("--model-download-only", action="store_true")
     parser.add_argument("--skip-ui", action="store_true")
     parser.add_argument("--dist-root", type=Path, default=ROOT / "dist")
     args = parser.parse_args()
@@ -36,8 +37,10 @@ def main() -> int:
     environment["LYRICRAFTER_SMOKE_REPORT"] = str(report)
     if args.network:
         environment["LYRICRAFTER_SMOKE_NETWORK"] = "1"
-    if args.model_download:
+    if args.model_download or args.model_download_only:
         environment["LYRICRAFTER_SMOKE_MODEL_DOWNLOAD"] = "1"
+    if args.model_download_only:
+        environment["LYRICRAFTER_SMOKE_SKIP_MODEL_INFERENCE"] = "1"
 
     subprocess.run([str(executable), "--package-smoke-test"], env=environment, check=True, timeout=600)
     payload = json.loads(report.read_text(encoding="utf-8"))

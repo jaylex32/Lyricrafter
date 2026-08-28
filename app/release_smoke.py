@@ -59,7 +59,8 @@ def run_package_smoke_test(report_path: Path | None = None) -> int:
     if os.environ.get("LYRICRAFTER_SMOKE_NETWORK") == "1":
         check("model_download_endpoints", _check_model_download_endpoints)
     if os.environ.get("LYRICRAFTER_SMOKE_MODEL_DOWNLOAD") == "1":
-        check("model_download_delete", _check_real_model_download_delete)
+        run_inference = os.environ.get("LYRICRAFTER_SMOKE_SKIP_MODEL_INFERENCE") != "1"
+        check("model_download_delete", lambda: _check_real_model_download_delete(run_inference))
 
     payload = {
         "ok": not errors,
@@ -156,7 +157,7 @@ def _check_model_download_endpoints() -> dict[str, object]:
     return {"faster_whisper": info.id, "whisper_cpp_http": cpp_status}
 
 
-def _check_real_model_download_delete() -> dict[str, object]:
+def _check_real_model_download_delete(run_inference: bool = True) -> dict[str, object]:
     with tempfile.TemporaryDirectory(prefix="lyricrafter-model-download-") as temp:
         manager = ModelManager(Path(temp))
         downloaded = manager.download_faster_whisper("tiny")
@@ -164,20 +165,25 @@ def _check_real_model_download_delete() -> dict[str, object]:
         if installed is None or not (installed / "model.bin").is_file():
             raise RuntimeError("The downloaded tiny model was not resolved for transcription.")
         size = (installed / "model.bin").stat().st_size
-        audio_path = Path(temp) / "silence.wav"
-        _write_silent_wave(audio_path)
-        from app.core.jobs import ProcessingOptions
-        from app.transcription.faster_whisper_backend import FasterWhisperTranscriber
+        decoded_seconds: float | None = None
+        segments: int | None = None
+        if run_inference:
+            audio_path = Path(temp) / "silence.wav"
+            _write_silent_wave(audio_path)
+            from app.core.jobs import ProcessingOptions
+            from app.transcription.faster_whisper_backend import FasterWhisperTranscriber
 
-        result = FasterWhisperTranscriber(model_manager=manager).transcribe(
-            audio_path,
-            ProcessingOptions(
-                model_id="tiny",
-                device="cpu",
-                compute_type="int8",
-                language="en",
-            ),
-        )
+            result = FasterWhisperTranscriber(model_manager=manager).transcribe(
+                audio_path,
+                ProcessingOptions(
+                    model_id="tiny",
+                    device="cpu",
+                    compute_type="int8",
+                    language="en",
+                ),
+            )
+            decoded_seconds = result.duration
+            segments = len(result.segments)
         if not manager.delete_model("tiny", "faster-whisper"):
             raise RuntimeError("The downloaded tiny model could not be deleted.")
         if manager.is_installed("tiny", "faster-whisper"):
@@ -185,8 +191,9 @@ def _check_real_model_download_delete() -> dict[str, object]:
         return {
             "downloaded": str(downloaded),
             "model_bytes": size,
-            "decoded_seconds": result.duration,
-            "segments": len(result.segments),
+            "inference_tested": run_inference,
+            "decoded_seconds": decoded_seconds,
+            "segments": segments,
             "deleted": True,
         }
 
