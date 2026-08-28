@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "whisper": [
+    {"id": "tiny", "name": "Tiny", "family": "OpenAI Whisper", "backend": "faster-whisper", "size": "~39M params", "recommended": false},
+    {"id": "tiny.en", "name": "Tiny English", "family": "OpenAI Whisper", "backend": "faster-whisper", "size": "~39M params", "recommended": false},
+    {"id": "base", "name": "Base", "family": "OpenAI Whisper", "backend": "faster-whisper", "size": "~74M params", "recommended": false},
+    {"id": "base.en", "name": "Base English", "family": "OpenAI Whisper", "backend": "faster-whisper", "size": "~74M params", "recommended": false},
+    {"id": "small", "name": "Small", "family": "OpenAI Whisper", "backend": "faster-whisper", "size": "~244M params", "recommended": true, "recommended_for": "Small systems"},
+    {"id": "small.en", "name": "Small English", "family": "OpenAI Whisper", "backend": "faster-whisper", "size": "~244M params", "recommended": false},
+    {"id": "medium", "name": "Medium", "family": "OpenAI Whisper", "backend": "faster-whisper", "size": "~769M params", "recommended": true, "recommended_for": "Medium systems"},
+    {"id": "medium.en", "name": "Medium English", "family": "OpenAI Whisper", "backend": "faster-whisper", "size": "~769M params", "recommended": false},
+    {"id": "large-v1", "name": "Large v1", "family": "OpenAI Whisper", "backend": "faster-whisper", "size": "~1550M params", "recommended": false},
+    {"id": "large-v2", "name": "Large v2", "family": "OpenAI Whisper", "backend": "faster-whisper", "size": "~1550M params", "recommended": true, "recommended_for": "Large / Default"},
+    {"id": "large-v3", "name": "Large v3", "family": "OpenAI Whisper", "backend": "faster-whisper", "size": "~1550M params", "recommended": false},
+    {"id": "turbo", "name": "Turbo", "family": "OpenAI Whisper", "backend": "faster-whisper", "size": "~809M params", "recommended": false},
+    {"id": "distil-large-v3", "name": "Distil Large v3", "family": "Distil-Whisper", "backend": "faster-whisper", "size": "distilled", "recommended": false}
+  ],
+  "whisper_cpp": [
+    {"id": "tiny-q5_1", "name": "Tiny q5_1", "family": "whisper.cpp", "backend": "whisper.cpp", "size": "~31 MiB"},
+    {"id": "base-q8_0", "name": "Base q8_0", "family": "whisper.cpp", "backend": "whisper.cpp", "size": "~78 MiB"},
+    {"id": "small-q5_1", "name": "Small q5_1", "family": "whisper.cpp", "backend": "whisper.cpp", "size": "~181 MiB"},
+    {"id": "medium-q5_0", "name": "Medium q5_0", "family": "whisper.cpp", "backend": "whisper.cpp", "size": "~514 MiB"},
+    {"id": "large-v3-q5_0", "name": "Large v3 q5_0", "family": "whisper.cpp", "backend": "whisper.cpp", "size": "~1.1 GiB"},
+    {"id": "large-v3-turbo", "name": "Large v3 Turbo", "family": "whisper.cpp", "backend": "whisper.cpp", "size": "~1.5 GiB"},
+    {"id": "large-v3-turbo-q5_0", "name": "Large v3 Turbo q5_0", "family": "whisper.cpp", "backend": "whisper.cpp", "size": "~547 MiB"},
+    {"id": "large-v3-turbo-q8_0", "name": "Large v3 Turbo q8_0", "family": "whisper.cpp", "backend": "whisper.cpp", "size": "~834 MiB"}
+  ],
+  "separation": [
+    {"id": "htdemucs", "name": "HTDemucs", "family": "Demucs", "backend": "demucs", "recommended": true},
+    {"id": "htdemucs_ft", "name": "HTDemucs Fine Tuned", "family": "Demucs", "backend": "demucs", "recommended": false},
+    {"id": "mdx_extra", "name": "MDX Extra", "family": "Demucs", "backend": "demucs", "recommended": false}
+  ]
+}

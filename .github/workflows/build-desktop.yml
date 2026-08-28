@@ -1,0 +1,104 @@
+name: Build desktop packages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            runner: windows-2025
+            artifact: Lyricrafter-Windows-x64
+          - name: Linux x64
+            runner: ubuntu-24.04
+            artifact: Lyricrafter-Linux-x64
+          - name: macOS arm64
+            runner: macos-15
+            artifact: Lyricrafter-macOS-arm64
+          - name: macOS Intel
+            runner: macos-15-intel
+            artifact: Lyricrafter-macOS-x64
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Linux GUI runtime
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libpulse0 libxcb-cursor0 libxkbcommon-x11-0
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,separation]" pyinstaller
+
+      - name: Build package
+        run: python scripts/build_release.py
+
+      - name: Test frozen package and model lifecycle
+        run: python scripts/test_packaged_app.py --model-download
+
+      - name: Install Inno Setup
+        if: runner.os == 'Windows'
+        run: choco install innosetup --no-progress -y
+
+      - name: Build split Windows installer
+        if: runner.os == 'Windows'
+        run: python scripts/build_windows_installer.py --dist-root dist --output-dir release/windows-installer
+
+      - name: Archive Linux package
+        if: runner.os == 'Linux'
+        run: python scripts/archive_release.py
+
+      - name: Archive macOS app
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p release
+          ARCH=$(uname -m)
+          ditto -c -k --sequesterRsrc --keepParent dist/Lyricrafter.app "release/Lyricrafter-macOS-${ARCH}.zip"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            release/**/*
+            artifacts/package-smoke.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: release-artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/**/Lyricrafter-*
+          generate_release_notes: true

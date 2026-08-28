@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lyricrafter"
+version = "0.1.0"
+description = "Local Windows desktop app for generating synchronized LRC and TXT lyrics from audio."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "PySide6>=6.7",
+    "faster-whisper>=1.0",
+    "huggingface-hub>=0.23",
+    "imageio-ffmpeg>=0.6",
+    "mutagen>=1.47",
+    "Pillow>=10.0",
+    "platformdirs>=4.2",
+    "sentencepiece>=0.2",
+    "syncedlyrics>=1.0.1",
+    "torch>=2.2",
+    "tqdm>=4.66",
+    "transformers>=5.0",
+    "yt-dlp>=2025.1.0",
+]
+
+[project.optional-dependencies]
+separation = ["demucs>=4.0", "torchaudio>=2.2"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+lyricrafter = "app.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.setuptools.package-data]
+"app" = ["assets/*.svg", "assets/icons/*.svg"]
+"app.models" = ["manifest.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

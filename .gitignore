@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+build/
+build_*/
+build-*/
+dist/
+dist-*/
+dist_*/
+release/
+test audio/
+.codex_tmp/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+artifacts/
+*.sqlite3
+*.log
