@@ -102,11 +102,27 @@ class ModelManager:
     def is_installed(self, model_id: str, backend: str) -> bool:
         path = self.installation_path(model_id, backend)
         if backend == "whisper.cpp":
-            return path.is_file() and path.stat().st_size > 0
+            try:
+                return path.is_file() and path.stat().st_size > 0
+            except OSError:
+                return False
         snapshots = path / "snapshots"
-        if not snapshots.is_dir():
+        try:
+            if not snapshots.is_dir():
+                return False
+            candidates = snapshots.rglob("*")
+        except OSError:
             return False
-        return any(candidate.is_file() for candidate in snapshots.rglob("*"))
+        try:
+            for candidate in candidates:
+                try:
+                    if candidate.is_file():
+                        return True
+                except OSError:
+                    continue
+        except OSError:
+            return False
+        return False
 
     def installed_faster_whisper_path(self, model_id: str) -> Path | None:
         return _latest_model_snapshot(self.installation_path(model_id, "faster-whisper"))
@@ -328,30 +344,46 @@ def _start_size_monitor(
 
 
 def _directory_size(folder: Path) -> int:
-    if not folder.exists():
+    try:
+        if not folder.exists():
+            return 0
+        paths = folder.rglob("*")
+    except OSError:
         return 0
     total = 0
-    for path in folder.rglob("*"):
-        try:
-            if path.is_file():
-                total += path.stat().st_size
-        except OSError:
-            continue
+    try:
+        for path in paths:
+            try:
+                if path.is_file():
+                    total += path.stat().st_size
+            except OSError:
+                continue
+    except OSError:
+        pass
     return total
 
 
 def _latest_model_snapshot(repo_folder: Path) -> Path | None:
     snapshots = repo_folder / "snapshots"
-    if not snapshots.is_dir():
+    try:
+        if not snapshots.is_dir():
+            return None
+        snapshot_paths = snapshots.iterdir()
+    except OSError:
         return None
-    candidates = [
-        path
-        for path in snapshots.iterdir()
-        if path.is_dir() and (path / "model.bin").is_file()
-    ]
+    candidates: list[tuple[int, Path]] = []
+    try:
+        for path in snapshot_paths:
+            try:
+                if path.is_dir() and (path / "model.bin").is_file():
+                    candidates.append((path.stat().st_mtime_ns, path))
+            except OSError:
+                continue
+    except OSError:
+        return None
     if not candidates:
         return None
-    return max(candidates, key=lambda path: path.stat().st_mtime_ns)
+    return max(candidates, key=lambda item: item[0])[1]
 
 
 def _legacy_hugging_face_hub() -> Path:

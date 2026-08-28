@@ -1,6 +1,11 @@
-# Lyricrafter Studio v0.1.0
+# Lyricrafter Studio v0.1.1
 
 The first public release of Lyricrafter Studio delivers a local AI workflow for generating, repairing, translating, and exporting synchronized song lyrics.
+
+## Fixed in 0.1.1
+
+- Prevented startup crashes when a configured model directory contains an inaccessible Windows mount point, junction, or stale external-drive entry.
+- Model inventory now skips unreadable files and snapshots while continuing to detect healthy downloaded models.
 
 ## Included
 
