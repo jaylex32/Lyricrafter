@@ -5,7 +5,7 @@ from pathlib import Path
 
 from app.core.cuda import add_cuda_dll_directories
 from app.core.config import default_model_dir
-from app.models.catalog import _expected_snapshot_bytes, _start_size_monitor
+from app.models.catalog import _expected_snapshot_bytes, _start_size_monitor, _windows_runtime_snapshot
 
 ProgressCallback = Callable[[int, str], None]
 
@@ -113,7 +113,7 @@ class NllbTranslator:
                 ),
             )
         try:
-            return Path(
+            snapshot = Path(
                 snapshot_download(
                     repo_id=self.model_id,
                     cache_dir=str(cache_dir),
@@ -121,6 +121,7 @@ class NllbTranslator:
                     allow_patterns=["*.json", "*.model", "*.safetensors", "*.bin", "sentencepiece.*", "tokenizer.*"],
                 )
             )
+            return _windows_runtime_snapshot(snapshot)
         finally:
             if stop_monitor is not None:
                 stop_monitor.set()

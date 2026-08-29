@@ -395,7 +395,8 @@ def _windows_runtime_snapshot(snapshot: Path) -> Path:
     repo_folder = snapshot.parent.parent
     runtime = repo_folder / "lyricrafter-runtime" / snapshot.name
     marker = runtime / ".complete"
-    required = (runtime / "config.json", runtime / "model.bin")
+    source_files = [entry for entry in entries if not entry.is_dir()]
+    required = tuple(runtime / source.name for source in source_files)
     try:
         if marker.is_file() and all(path.is_file() and not path.is_symlink() for path in required):
             return runtime
@@ -403,9 +404,7 @@ def _windows_runtime_snapshot(snapshot: Path) -> Path:
         pass
 
     runtime.mkdir(parents=True, exist_ok=True)
-    for source in entries:
-        if source.is_dir():
-            continue
+    for source in source_files:
         destination = runtime / source.name
         actual_source = _model_link_target(source, repo_folder)
         _create_model_runtime_file(actual_source, destination)

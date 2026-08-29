@@ -1,6 +1,12 @@
-# Lyricrafter Studio v0.1.2
+# Lyricrafter Studio v0.1.3
 
 The first public release of Lyricrafter Studio delivers a local AI workflow for generating, repairing, translating, and exporting synchronized song lyrics.
+
+## Fixed in 0.1.3
+
+- Fixed frozen Windows NLLB translation failing to instantiate its tokenizer from symbolic-link model files.
+- Applied the Windows-safe hard-linked runtime view to tokenizer, SentencePiece, and translation weight files.
+- Added a packaged translation gate that loads the existing NLLB model and translates a real Spanish line to English.
 
 ## Fixed in 0.1.2
 

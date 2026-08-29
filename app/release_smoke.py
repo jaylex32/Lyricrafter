@@ -68,6 +68,12 @@ def run_package_smoke_test(report_path: Path | None = None) -> int:
             "existing_model_load",
             lambda: _check_existing_model_load(Path(existing_model_dir), existing_model_id),
         )
+    translation_model_dir = os.environ.get("LYRICRAFTER_SMOKE_TRANSLATION_MODEL_DIR", "").strip()
+    if translation_model_dir:
+        check(
+            "existing_translation",
+            lambda: _check_existing_translation(Path(translation_model_dir)),
+        )
 
     payload = {
         "ok": not errors,
@@ -220,6 +226,20 @@ def _check_existing_model_load(model_dir: Path, model_id: str) -> dict[str, obje
         "model_id": model_id,
         "runtime_path": str(installed),
         "model_bytes": model_file.stat().st_size,
+        "loaded": True,
+    }
+
+
+def _check_existing_translation(model_dir: Path) -> dict[str, object]:
+    from app.translation.nllb import NllbTranslator
+
+    translator = NllbTranslator(model_dir=model_dir)
+    translated = translator.translate_lines(["Hola mundo"], "spa_Latn", "eng_Latn")
+    if len(translated) != 1 or not translated[0].strip():
+        raise RuntimeError(f"NLLB returned an invalid translation: {translated}")
+    return {
+        "source": "Hola mundo",
+        "translated": translated[0],
         "loaded": True,
     }
 

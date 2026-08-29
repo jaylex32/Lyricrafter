@@ -112,6 +112,31 @@ def test_windows_runtime_snapshot_replaces_model_symlinks_with_regular_files(tmp
     assert not (runtime / "model.bin").is_symlink()
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows runtime materialization")
+def test_windows_runtime_snapshot_supports_translation_model_files(tmp_path) -> None:
+    repo = tmp_path / "repo"
+    blobs = repo / "blobs"
+    snapshot = repo / "snapshots" / "revision"
+    blobs.mkdir(parents=True)
+    snapshot.mkdir(parents=True)
+    model_files = {
+        "config.json": b"{}",
+        "sentencepiece.bpe.model": b"sentencepiece",
+        "tokenizer.json": b"{}",
+        "pytorch_model.bin": b"weights",
+    }
+    for name, content in model_files.items():
+        blob = blobs / f"{name}.blob"
+        blob.write_bytes(content)
+        (snapshot / name).symlink_to(Path("..") / ".." / "blobs" / blob.name)
+
+    runtime = _windows_runtime_snapshot(snapshot)
+
+    for name, content in model_files.items():
+        assert (runtime / name).read_bytes() == content
+        assert not (runtime / name).is_symlink()
+
+
 def test_model_manager_detects_and_deletes_whisper_cpp_model(tmp_path) -> None:
     manager = ModelManager(tmp_path)
     model_path = manager.installation_path("tiny-q5_1", "whisper.cpp")
