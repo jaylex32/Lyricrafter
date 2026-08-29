@@ -1,6 +1,12 @@
-# Lyricrafter Studio v0.1.1
+# Lyricrafter Studio v0.1.2
 
 The first public release of Lyricrafter Studio delivers a local AI workflow for generating, repairing, translating, and exporting synchronized song lyrics.
+
+## Fixed in 0.1.2
+
+- Fixed frozen Windows transcription failing to open Hugging Face `model.bin` files stored as symbolic-link reparse points.
+- Lyricrafter now creates a Windows-safe hard-linked runtime view of downloaded faster-whisper models without duplicating model data.
+- Added a packaged-runtime check that loads an existing external-drive model through CTranslate2.
 
 ## Fixed in 0.1.1
 

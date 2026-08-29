@@ -61,6 +61,13 @@ def run_package_smoke_test(report_path: Path | None = None) -> int:
     if os.environ.get("LYRICRAFTER_SMOKE_MODEL_DOWNLOAD") == "1":
         run_inference = os.environ.get("LYRICRAFTER_SMOKE_SKIP_MODEL_INFERENCE") != "1"
         check("model_download_delete", lambda: _check_real_model_download_delete(run_inference))
+    existing_model_dir = os.environ.get("LYRICRAFTER_SMOKE_EXISTING_MODEL_DIR", "").strip()
+    existing_model_id = os.environ.get("LYRICRAFTER_SMOKE_EXISTING_MODEL_ID", "").strip()
+    if existing_model_dir and existing_model_id:
+        check(
+            "existing_model_load",
+            lambda: _check_existing_model_load(Path(existing_model_dir), existing_model_id),
+        )
 
     payload = {
         "ok": not errors,
@@ -196,6 +203,25 @@ def _check_real_model_download_delete(run_inference: bool = True) -> dict[str, o
             "segments": segments,
             "deleted": True,
         }
+
+
+def _check_existing_model_load(model_dir: Path, model_id: str) -> dict[str, object]:
+    from faster_whisper import WhisperModel
+
+    manager = ModelManager(model_dir)
+    installed = manager.resolved_faster_whisper_path(model_id)
+    if installed is None:
+        raise RuntimeError(f"The existing {model_id} model was not found in {model_dir}.")
+    model_file = installed / "model.bin"
+    if not model_file.is_file() or model_file.is_symlink():
+        raise RuntimeError(f"The runtime model file is not a regular file: {model_file}")
+    WhisperModel(str(installed), device="cpu", compute_type="int8")
+    return {
+        "model_id": model_id,
+        "runtime_path": str(installed),
+        "model_bytes": model_file.stat().st_size,
+        "loaded": True,
+    }
 
 
 def _write_silent_wave(path: Path, seconds: int = 1) -> None:

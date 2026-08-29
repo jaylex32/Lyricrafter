@@ -1,5 +1,5 @@
 #define AppName "Lyricrafter Studio"
-#define AppVersion "0.1.1"
+#define AppVersion "0.1.2"
 #define AppPublisher "Jaylex32"
 #define AppExeName "Lyricrafter.exe"
 

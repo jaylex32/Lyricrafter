@@ -106,26 +106,11 @@ class ModelManager:
                 return path.is_file() and path.stat().st_size > 0
             except OSError:
                 return False
-        snapshots = path / "snapshots"
-        try:
-            if not snapshots.is_dir():
-                return False
-            candidates = snapshots.rglob("*")
-        except OSError:
-            return False
-        try:
-            for candidate in candidates:
-                try:
-                    if candidate.is_file():
-                        return True
-                except OSError:
-                    continue
-        except OSError:
-            return False
-        return False
+        return _latest_model_snapshot(path) is not None
 
     def installed_faster_whisper_path(self, model_id: str) -> Path | None:
-        return _latest_model_snapshot(self.installation_path(model_id, "faster-whisper"))
+        snapshot = _latest_model_snapshot(self.installation_path(model_id, "faster-whisper"))
+        return _windows_runtime_snapshot(snapshot) if snapshot is not None else None
 
     def resolved_faster_whisper_path(self, model_id: str) -> Path | None:
         installed = self.installed_faster_whisper_path(model_id)
@@ -375,7 +360,7 @@ def _latest_model_snapshot(repo_folder: Path) -> Path | None:
     try:
         for path in snapshot_paths:
             try:
-                if path.is_dir() and (path / "model.bin").is_file():
+                if path.is_dir() and _snapshot_has_model(path):
                     candidates.append((path.stat().st_mtime_ns, path))
             except OSError:
                 continue
@@ -384,6 +369,85 @@ def _latest_model_snapshot(repo_folder: Path) -> Path | None:
     if not candidates:
         return None
     return max(candidates, key=lambda item: item[0])[1]
+
+
+def _snapshot_has_model(snapshot: Path) -> bool:
+    model = snapshot / "model.bin"
+    try:
+        return model.is_file()
+    except OSError:
+        try:
+            return model.is_symlink()
+        except OSError:
+            return False
+
+
+def _windows_runtime_snapshot(snapshot: Path) -> Path:
+    if os.name != "nt":
+        return snapshot
+    try:
+        entries = list(snapshot.iterdir())
+        if not any(entry.is_symlink() for entry in entries):
+            return snapshot
+    except OSError as exc:
+        raise RuntimeError(f"Unable to inspect downloaded model files: {exc}") from exc
+
+    repo_folder = snapshot.parent.parent
+    runtime = repo_folder / "lyricrafter-runtime" / snapshot.name
+    marker = runtime / ".complete"
+    required = (runtime / "config.json", runtime / "model.bin")
+    try:
+        if marker.is_file() and all(path.is_file() and not path.is_symlink() for path in required):
+            return runtime
+    except OSError:
+        pass
+
+    runtime.mkdir(parents=True, exist_ok=True)
+    for source in entries:
+        if source.is_dir():
+            continue
+        destination = runtime / source.name
+        actual_source = _model_link_target(source, repo_folder)
+        _create_model_runtime_file(actual_source, destination)
+
+    if not all(path.is_file() and not path.is_symlink() for path in required):
+        raise RuntimeError("The Windows-safe model view is incomplete.")
+    marker.write_text("ok", encoding="ascii")
+    return runtime
+
+
+def _model_link_target(source: Path, repo_folder: Path) -> Path:
+    if not source.is_symlink():
+        return source
+    link_target = os.readlink(source)
+    actual = Path(os.path.abspath(os.path.join(source.parent, link_target)))
+    repo_root = os.path.normcase(os.path.abspath(repo_folder))
+    try:
+        common = os.path.normcase(os.path.commonpath((repo_root, str(actual))))
+    except ValueError as exc:
+        raise RuntimeError(f"Invalid model link target: {source}") from exc
+    if common != repo_root:
+        raise RuntimeError(f"Model link points outside its managed cache: {source}")
+    return actual
+
+
+def _create_model_runtime_file(source: Path, destination: Path) -> None:
+    source_size = source.stat().st_size
+    try:
+        if destination.is_file() and not destination.is_symlink() and destination.stat().st_size == source_size:
+            return
+    except OSError:
+        pass
+    temporary = destination.with_name(f".{destination.name}.part")
+    try:
+        temporary.unlink(missing_ok=True)
+        try:
+            os.link(source, temporary)
+        except OSError:
+            shutil.copy2(source, temporary)
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _legacy_hugging_face_hub() -> Path:
