@@ -1,6 +1,11 @@
-# Lyricrafter Studio v0.1.4
+# Lyricrafter Studio v0.1.5
 
-Lyricrafter Studio v0.1.4 replaces the oversized split Windows package with a compact CPU-ready installer and optional NVIDIA acceleration.
+Lyricrafter Studio v0.1.5 fixes startup with Hugging Face models stored on Windows volumes that enforce untrusted mount-point protections. It also includes the compact CPU-ready installer and optional NVIDIA acceleration introduced in v0.1.4.
+
+## Startup Fix
+
+- Windows model-cache links are classified without following their targets, preventing WinError 448 during startup on affected external or mounted drives.
+- Added a regression test that reproduces the rejected-link traversal before model materialization.
 
 ## Windows Packaging
 

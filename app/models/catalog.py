@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 import threading
 import time
 import urllib.request
@@ -395,7 +396,12 @@ def _windows_runtime_snapshot(snapshot: Path) -> Path:
     repo_folder = snapshot.parent.parent
     runtime = repo_folder / "lyricrafter-runtime" / snapshot.name
     marker = runtime / ".complete"
-    source_files = [entry for entry in entries if not entry.is_dir()]
+    # Do not call is_dir() here. It follows model-cache symlinks on Windows,
+    # which can raise WinError 448 on removable or untrusted mounted volumes.
+    try:
+        source_files = [entry for entry in entries if not stat.S_ISDIR(entry.lstat().st_mode)]
+    except OSError as exc:
+        raise RuntimeError(f"Unable to inspect downloaded model files: {exc}") from exc
     required = tuple(runtime / source.name for source in source_files)
     try:
         if marker.is_file() and all(path.is_file() and not path.is_symlink() for path in required):

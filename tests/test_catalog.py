@@ -113,6 +113,33 @@ def test_windows_runtime_snapshot_replaces_model_symlinks_with_regular_files(tmp
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows runtime materialization")
+def test_windows_runtime_snapshot_does_not_follow_links_to_classify_entries(tmp_path, monkeypatch) -> None:
+    repo = tmp_path / "repo"
+    blobs = repo / "blobs"
+    snapshot = repo / "snapshots" / "revision"
+    blobs.mkdir(parents=True)
+    snapshot.mkdir(parents=True)
+    for name, content in (("config.json", b"{}"), ("model.bin", b"model")):
+        blob = blobs / f"{name}.blob"
+        blob.write_bytes(content)
+        (snapshot / name).symlink_to(Path("..") / ".." / "blobs" / blob.name)
+
+    original_is_dir = Path.is_dir
+
+    def reject_followed_link(path: Path) -> bool:
+        if path.parent == snapshot:
+            raise OSError(448, "untrusted mount point")
+        return original_is_dir(path)
+
+    monkeypatch.setattr(Path, "is_dir", reject_followed_link)
+
+    runtime = _windows_runtime_snapshot(snapshot)
+
+    assert (runtime / "config.json").read_bytes() == b"{}"
+    assert (runtime / "model.bin").read_bytes() == b"model"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows runtime materialization")
 def test_windows_runtime_snapshot_supports_translation_model_files(tmp_path) -> None:
     repo = tmp_path / "repo"
     blobs = repo / "blobs"
