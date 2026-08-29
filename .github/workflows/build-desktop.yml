@@ -76,6 +76,27 @@ jobs:
         if: matrix.name != 'macOS Intel'
         run: python scripts/test_packaged_app.py --model-download
 
+      - name: Test console-free Windows model lifecycle
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $report = Join-Path $env:GITHUB_WORKSPACE "artifacts/package-smoke-windowed.json"
+          $env:LYRICRAFTER_SMOKE_REPORT = $report
+          $env:LYRICRAFTER_SMOKE_MODEL_DOWNLOAD = "1"
+          $process = Start-Process `
+            -FilePath "dist/Lyricrafter/Lyricrafter.exe" `
+            -ArgumentList "--package-smoke-test" `
+            -Wait `
+            -PassThru `
+            -WindowStyle Hidden
+          if ($process.ExitCode -ne 0) {
+            throw "Console-free package smoke failed with exit code $($process.ExitCode)."
+          }
+          $payload = Get-Content $report -Raw | ConvertFrom-Json
+          if (-not $payload.ok -or -not $payload.frozen) {
+            throw "Console-free package smoke report failed: $(Get-Content $report -Raw)"
+          }
+
       - name: Test Intel package runtime
         if: matrix.name == 'macOS Intel'
         run: python scripts/test_packaged_app.py
@@ -105,7 +126,7 @@ jobs:
           name: ${{ matrix.artifact }}
           path: |
             release/**/*
-            artifacts/package-smoke.json
+            artifacts/package-smoke*.json
           if-no-files-found: error
           compression-level: 0
           retention-days: 14

@@ -2,6 +2,15 @@
 
 All notable Lyricrafter Studio changes are documented here.
 
+## 0.1.7 - 2026-08-29
+
+### Fixed
+
+- Fixed Whisper and translation model downloads when the Windows app is launched without a console.
+- Replaced unusable PyInstaller GUI output handles with valid null streams.
+- Disabled redundant Hugging Face terminal progress while preserving Lyricrafter's in-app percentage reporting.
+- Added a console-free Windows model lifecycle test to release automation.
+
 ## 0.1.6 - 2026-08-29
 
 ### Added

@@ -1,6 +1,14 @@
-# Lyricrafter Studio v0.1.6
+# Lyricrafter Studio v0.1.7
 
-Lyricrafter Studio v0.1.6 improves CPU transcription quality and gives users direct control over faster-whisper CPU utilization. It also refreshes workspace navigation with the new Lyricrafter icon set.
+Lyricrafter Studio v0.1.7 fixes model downloads from the normal console-free Windows desktop app. It also includes the CPU quality, performance controls, and navigation refresh introduced in v0.1.6.
+
+## Model Download Fix
+
+- Fixed Hugging Face model downloads failing with `[Errno 22] Invalid argument` or stream write errors when Lyricrafter is launched normally from Windows.
+- Added runtime handling for both missing and unusable PyInstaller GUI output streams.
+- Disabled redundant terminal progress bars while preserving Lyricrafter's in-app model download percentages.
+- Added regression coverage for invalid Windows GUI streams.
+- Added a console-free Windows model download, inference, and deletion gate to release builds.
 
 ## CPU Quality
 
@@ -27,7 +35,7 @@ Lyricrafter Studio v0.1.6 improves CPU transcription quality and gives users dir
 
 ## Verification
 
-- 90 automated tests pass in both the standard and CPU-only Python environments.
+- 91 automated tests pass in both the standard and CPU-only Python environments.
 - Frozen package and UI smoke-test paths include the new navigation resources.
 - A controlled 90-second `large-v2` test produced essentially matching text on CPU FP32 and CUDA FP16; CPU INT8 produced additional recognition differences.
 - Windows x64, Linux x64, macOS Apple Silicon, and macOS Intel packages are built and tested by GitHub Actions.
