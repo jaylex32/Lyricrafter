@@ -1,6 +1,19 @@
-# Lyricrafter Studio v0.1.3
+# Lyricrafter Studio v0.1.4
 
-The first public release of Lyricrafter Studio delivers a local AI workflow for generating, repairing, translating, and exporting synchronized song lyrics.
+Lyricrafter Studio v0.1.4 replaces the oversized split Windows package with a compact CPU-ready installer and optional NVIDIA acceleration.
+
+## Windows Packaging
+
+- Replaced the split multi-gigabyte Windows package with one CPU-ready installer.
+- Added an optional in-app NVIDIA runtime download for faster-whisper transcription.
+- Kept Whisper and translation model weights as separate user-managed downloads.
+- Changed automatic transcription device detection to use the CTranslate2 GPU backend directly.
+
+## Reliability
+
+- NVIDIA components are downloaded from pinned official PyPI packages and SHA-256 verified before installation.
+- CPU `int8` transcription remains the automatic fallback when NVIDIA acceleration is unavailable.
+- Added tests for optional runtime installation, validation, extraction, and removal.
 
 ## Fixed in 0.1.3
 
@@ -36,21 +49,11 @@ The first public release of Lyricrafter Studio delivers a local AI workflow for 
 
 ## Windows Download
 
-Download the setup executable and **all** `.bin` files into the same directory, then run:
+Download and run the single setup file:
 
 `Lyricrafter-Windows-x64-Setup.exe`
 
-Required files:
-
-- `Lyricrafter-Windows-x64-Setup.exe`
-- `Lyricrafter-Windows-x64-Setup-1.bin`
-- `Lyricrafter-Windows-x64-Setup-2.bin`
-
-Keep all three files together. The installer is split because the bundled NVIDIA
-CUDA runtime makes the compressed Windows payload larger than GitHub's 2 GiB
-per-file release limit. The `.bin` files are installer data, not separate apps.
-
-The application and CUDA-capable AI runtime are included. Whisper, translation, and separation model weights are downloaded from inside Lyricrafter as needed.
+The installer is CPU-ready and does not require a graphics card. Compatible NVIDIA users can open Models and select `Install NVIDIA Support`; Lyricrafter downloads and verifies the optional CUDA runtime without requiring another setup program. Whisper, translation, and separation model weights remain separate in-app downloads.
 
 ## macOS Download
 
@@ -72,11 +75,13 @@ a compatible CUDA-enabled environment.
 
 ## Verification
 
-- 77 automated tests pass.
+- 84 automated tests pass in both CUDA and CPU-only Python environments.
 - Windows x64, Linux x64, macOS Apple Silicon, and macOS Intel builds pass the frozen package and UI checks.
 - Bundled FFmpeg, translation runtime, writable model storage, model catalog, and native AI dependencies are verified on all four targets.
 - A real Whisper model was downloaded, loaded for CPU inference, and deleted by the frozen Windows, Linux, and Apple Silicon packages.
-- The Windows installer was installed to an isolated directory, launched, validated, and uninstalled successfully.
+- The final 220.1 MB Windows installer was installed, launched, and validated successfully.
+- The optional NVIDIA pack was downloaded from the app pipeline, SHA-256 verified, and used to run `large-v2` transcription on CUDA.
+- Existing external-drive `large-v2` loading and real Spanish-to-English NLLB translation pass from the installed application.
 
 ## Notes
 

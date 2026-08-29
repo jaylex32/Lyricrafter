@@ -7,6 +7,7 @@ from PySide6.QtCore import QThread, Signal
 
 from app.core.engine import LyricrafterEngine
 from app.core.jobs import JobResult, JobStatus, LyricJob, ProcessingOptions
+from app.core.nvidia_runtime import NvidiaRuntimeManager
 from app.core.youtube import DEFAULT_FILENAME_TEMPLATE, download_url_audio
 from app.lyrics.service import LyricsSourceService
 from app.lyrics.types import LyricCandidate
@@ -122,6 +123,24 @@ class ModelDownloadWorker(QThread):
             self.finished_path.emit(str(path))
         self.progress.emit(100, "All selected model downloads completed")
         self.all_finished.emit()
+
+
+class NvidiaRuntimeWorker(QThread):
+    progress = Signal(int, str)
+    failed = Signal(str)
+    installed = Signal(str)
+
+    def __init__(self, manager: NvidiaRuntimeManager | None = None) -> None:
+        super().__init__()
+        self.manager = manager or NvidiaRuntimeManager()
+
+    def run(self) -> None:
+        try:
+            path = self.manager.install(lambda percent, message: self.progress.emit(percent, message))
+        except Exception as exc:
+            self.failed.emit(str(exc))
+            return
+        self.installed.emit(str(path))
 
 
 class TranslationWorker(QThread):

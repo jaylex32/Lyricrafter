@@ -46,12 +46,11 @@ Models download into writable user storage and can be removed from the Model Lib
 
 ## Windows Installation
 
-The CUDA-capable Windows installer is split because each GitHub release asset must remain under 2 GiB.
+The Windows package is a single CPU-ready installer. CUDA libraries and AI model weights are not bundled.
 
-1. Download `Lyricrafter-Windows-x64-Setup.exe` and every adjacent `.bin` file from the release.
-2. Keep all files in the same folder.
-3. Run `Lyricrafter-Windows-x64-Setup.exe`.
-4. Open Models and download a recommended Whisper model.
+1. Download and run `Lyricrafter-Windows-x64-Setup.exe`.
+2. Open Models and download a recommended Whisper model.
+3. On a compatible NVIDIA system, choose `Install NVIDIA Support` in Models to download optional Whisper acceleration.
 
 Use `SHA256SUMS.txt` from the release to verify the downloaded parts. The package is unsigned, so Windows SmartScreen may display a warning. Models require additional disk space; `large-v2` uses several gigabytes.
 
@@ -64,7 +63,7 @@ Python 3.10 or newer is required. Python 3.12 is used by release automation.
 .\scripts\run.ps1
 ```
 
-For NVIDIA acceleration on Windows:
+For NVIDIA acceleration when running from source:
 
 ```powershell
 .\scripts\enable_cuda.ps1

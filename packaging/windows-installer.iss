@@ -1,5 +1,5 @@
 #define AppName "Lyricrafter Studio"
-#define AppVersion "0.1.3"
+#define AppVersion "0.1.4"
 #define AppPublisher "Jaylex32"
 #define AppExeName "Lyricrafter.exe"
 
@@ -25,8 +25,7 @@ SetupIconFile=icons\lyricrafter.ico
 UninstallDisplayIcon={app}\{#AppExeName}
 Compression=lzma2/ultra64
 SolidCompression=yes
-DiskSpanning=yes
-DiskSliceSize=1900000000
+DiskSpanning=no
 WizardStyle=modern
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible

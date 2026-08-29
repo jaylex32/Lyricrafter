@@ -87,6 +87,7 @@ from app.lyrics.structure import (
 )
 from app.lyrics.types import LyricCandidate, ProviderLyrics
 from app.models.catalog import ModelCatalog, ModelManager
+from app.core.nvidia_runtime import NvidiaRuntimeManager
 from app.translation.languages import (
     TRANSLATION_ENGINES,
     language_names,
@@ -100,6 +101,7 @@ from app.ui.workers import (
     LyricsSourceWorker,
     MetadataWorker,
     ModelDownloadWorker,
+    NvidiaRuntimeWorker,
     ProcessWorker,
     TranslationWorker,
     UrlDownloadWorker,
@@ -141,6 +143,8 @@ class MainWindow(QMainWindow):
         self.jobs: list[LyricJob] = []
         self.process_worker: ProcessWorker | None = None
         self.download_worker: ModelDownloadWorker | None = None
+        self.nvidia_runtime_manager = NvidiaRuntimeManager()
+        self.nvidia_runtime_worker: NvidiaRuntimeWorker | None = None
         self.url_download_worker: UrlDownloadWorker | None = None
         self.metadata_worker: MetadataWorker | None = None
         self.translation_worker: TranslationWorker | None = None
@@ -1270,6 +1274,32 @@ class MainWindow(QMainWindow):
         download_layout.addWidget(self.model_download_label)
         download_layout.addWidget(self.model_download_progress)
         layout.addWidget(download_group)
+        gpu_group = QGroupBox("NVIDIA Acceleration")
+        gpu_layout = QVBoxLayout(gpu_group)
+        self.nvidia_runtime_label = QLabel(self.nvidia_runtime_manager.status_text())
+        self.nvidia_runtime_label.setObjectName("Muted")
+        self.nvidia_runtime_label.setWordWrap(True)
+        self.nvidia_runtime_progress = QProgressBar()
+        self.nvidia_runtime_progress.setRange(0, 100)
+        self.nvidia_runtime_progress.setValue(100 if self.nvidia_runtime_manager.installed else 0)
+        gpu_actions = QHBoxLayout()
+        self.install_nvidia_btn = QPushButton("Install NVIDIA Support")
+        self.install_nvidia_btn.setToolTip(
+            "Downloads the optional NVIDIA CUDA libraries for faster-whisper. "
+            "Translation and vocal isolation continue to use CPU in the compact Windows build."
+        )
+        self.install_nvidia_btn.clicked.connect(self.install_nvidia_runtime)
+        self.remove_nvidia_btn = QPushButton("Remove NVIDIA Support")
+        self.remove_nvidia_btn.setObjectName("DangerButton")
+        self.remove_nvidia_btn.clicked.connect(self.remove_nvidia_runtime)
+        gpu_actions.addWidget(self.install_nvidia_btn)
+        gpu_actions.addWidget(self.remove_nvidia_btn)
+        gpu_actions.addStretch(1)
+        gpu_layout.addWidget(self.nvidia_runtime_label)
+        gpu_layout.addWidget(self.nvidia_runtime_progress)
+        gpu_layout.addLayout(gpu_actions)
+        layout.addWidget(gpu_group)
+        self._refresh_nvidia_runtime_controls()
         actions = QHBoxLayout()
         download_btn = QPushButton("Download Selected")
         download_btn.setObjectName("PrimaryButton")
@@ -4002,6 +4032,83 @@ class MainWindow(QMainWindow):
     def open_model_folder(self) -> None:
         open_in_file_manager(self.model_manager.model_dir)
 
+    def install_nvidia_runtime(self) -> None:
+        if self.nvidia_runtime_worker and self.nvidia_runtime_worker.isRunning():
+            return
+        answer = QMessageBox.question(
+            self,
+            "Install NVIDIA Support",
+            "Download about 1.2 GB of NVIDIA CUDA libraries for Whisper transcription?\n\n"
+            "This is optional and requires a compatible NVIDIA GPU and current driver.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if answer != QMessageBox.Yes:
+            return
+        self.nvidia_runtime_progress.setValue(0)
+        self.install_nvidia_btn.setEnabled(False)
+        self.remove_nvidia_btn.setEnabled(False)
+        self.nvidia_runtime_worker = NvidiaRuntimeWorker(self.nvidia_runtime_manager)
+        self.nvidia_runtime_worker.progress.connect(self._on_nvidia_runtime_progress)
+        self.nvidia_runtime_worker.failed.connect(self._on_nvidia_runtime_failed)
+        self.nvidia_runtime_worker.installed.connect(self._on_nvidia_runtime_installed)
+        self.nvidia_runtime_worker.start()
+
+    def remove_nvidia_runtime(self) -> None:
+        answer = QMessageBox.question(
+            self,
+            "Remove NVIDIA Support",
+            "Remove the downloaded NVIDIA runtime? Whisper will use CPU after Lyricrafter restarts.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if answer != QMessageBox.Yes:
+            return
+        try:
+            removed = self.nvidia_runtime_manager.uninstall()
+        except OSError as exc:
+            QMessageBox.critical(
+                self,
+                "Remove NVIDIA Support",
+                f"The runtime is currently in use. Close Lyricrafter and remove it after restarting.\n\n{exc}",
+            )
+            return
+        self.nvidia_runtime_progress.setValue(0)
+        self._refresh_nvidia_runtime_controls()
+        self.statusBar().showMessage("NVIDIA support removed" if removed else "NVIDIA support is not installed")
+
+    def _on_nvidia_runtime_progress(self, percent: int, message: str) -> None:
+        self.nvidia_runtime_progress.setValue(percent)
+        self.nvidia_runtime_label.setText(message)
+        self.header_status.setText(message)
+        self.statusBar().showMessage(message)
+
+    def _on_nvidia_runtime_failed(self, message: str) -> None:
+        self.header_status.setText("NVIDIA install failed")
+        self._refresh_nvidia_runtime_controls()
+        self.nvidia_runtime_label.setText(f"NVIDIA install failed: {message}")
+        QMessageBox.critical(self, "NVIDIA install failed", message)
+
+    def _on_nvidia_runtime_installed(self, path: str) -> None:
+        self.nvidia_runtime_progress.setValue(100)
+        self.header_status.setText("Restart to activate NVIDIA support")
+        self._refresh_nvidia_runtime_controls()
+        self.nvidia_runtime_label.setText("NVIDIA support installed. Restart Lyricrafter to activate it.")
+        QMessageBox.information(
+            self,
+            "NVIDIA Support",
+            f"NVIDIA Whisper acceleration was installed to:\n{path}\n\nRestart Lyricrafter before processing audio.",
+        )
+
+    def _refresh_nvidia_runtime_controls(self) -> None:
+        installed = self.nvidia_runtime_manager.installed
+        supported = self.nvidia_runtime_manager.supported
+        running = bool(self.nvidia_runtime_worker and self.nvidia_runtime_worker.isRunning())
+        self.install_nvidia_btn.setEnabled(supported and not installed and not running)
+        self.remove_nvidia_btn.setEnabled(supported and installed and not running)
+        if not running:
+            self.nvidia_runtime_label.setText(self.nvidia_runtime_manager.status_text())
+
     def choose_model_dir(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Choose model folder", str(self.model_manager.model_dir))
         if not folder:
@@ -4487,12 +4594,9 @@ def _safe_provider_suffix(provider: str) -> str:
 
 
 def _cuda_available() -> bool:
-    try:
-        import torch
+    from app.core.cuda import ctranslate2_cuda_available
 
-        return bool(torch.cuda.is_available())
-    except Exception:
-        return False
+    return ctranslate2_cuda_available()
 
 
 def _setting_bool(value: str | None, default: bool) -> bool:

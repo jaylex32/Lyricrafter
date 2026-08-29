@@ -4,6 +4,7 @@ import types
 
 from app.core.jobs import ProcessingOptions
 from app.models.catalog import ModelManager
+from app.transcription import faster_whisper_backend
 from app.transcription.faster_whisper_backend import FasterWhisperTranscriber
 
 
@@ -75,3 +76,11 @@ def test_default_factory_uses_downloaded_model_storage(tmp_path: Path, monkeypat
 
     assert captured["model_source"] == str(snapshot)
     assert captured["download_root"] == str(manager.faster_whisper_cache_dir())
+
+
+def test_auto_device_uses_ctranslate2_cuda_detection(monkeypatch) -> None:
+    monkeypatch.setattr(faster_whisper_backend, "ctranslate2_cuda_available", lambda: True)
+    assert faster_whisper_backend._resolve_device("auto") == "cuda"
+
+    monkeypatch.setattr(faster_whisper_backend, "ctranslate2_cuda_available", lambda: False)
+    assert faster_whisper_backend._resolve_device("auto") == "cpu"

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Protocol
 
-from app.core.cuda import add_cuda_dll_directories
+from app.core.cuda import add_cuda_dll_directories, ctranslate2_cuda_available
 from app.core.jobs import ProcessingOptions
 from app.models.catalog import ModelManager
 from app.transcription.types import TranscriptSegment, TranscriptionResult, WordTiming
@@ -160,12 +160,7 @@ class FasterWhisperTranscriber:
 def _resolve_device(device: str) -> str:
     if device != "auto":
         return device
-    try:
-        import torch
-
-        return "cuda" if torch.cuda.is_available() else "cpu"
-    except Exception:
-        return "cpu"
+    return "cuda" if ctranslate2_cuda_available() else "cpu"
 
 
 def _resolve_compute_type(compute_type: str, device: str) -> str:

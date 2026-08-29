@@ -43,6 +43,12 @@ def default_model_dir() -> Path:
     return path
 
 
+def runtime_dir() -> Path:
+    path = data_dir() / "runtimes"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def stems_cache_dir() -> Path:
     path = cache_dir() / "stems"
     path.mkdir(parents=True, exist_ok=True)
