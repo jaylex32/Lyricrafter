@@ -11,7 +11,7 @@ import urllib.request
 from app.core.config import default_model_dir
 from app.core.database import AppDatabase
 from app.core.media_tools import bundled_ffmpeg_exe
-from app.core.resources import app_icon_path
+from app.core.resources import app_asset_path, app_icon_path
 from app.models.catalog import ModelCatalog, ModelManager
 
 
@@ -49,6 +49,7 @@ def run_package_smoke_test(report_path: Path | None = None) -> int:
         check(f"import:{module_name}", lambda name=module_name: importlib.import_module(name).__name__)
 
     check("app_icon", lambda: _existing_path(app_icon_path()))
+    check("navigation_icons", _check_navigation_icons)
     check("ffmpeg", lambda: _existing_path(bundled_ffmpeg_exe()))
     check("model_catalog", lambda: len(ModelCatalog().list_models("whisper")))
     check("model_recommendations", _check_model_recommendations)
@@ -92,6 +93,17 @@ def _existing_path(path: Path | None) -> str:
     if path is None or not path.exists():
         raise RuntimeError("Required packaged resource was not found.")
     return str(path)
+
+
+def _check_navigation_icons() -> list[str]:
+    names = [
+        "list_8800.svg",
+        "editor_qwy6uhbxcr1i.svg",
+        "models_q48f9jpnpu0e.svg",
+        "history_10058.svg",
+        "settings_59996.svg",
+    ]
+    return [_existing_path(app_asset_path(f"icons/{name}")) for name in names]
 
 
 def _check_default_model_storage() -> str:

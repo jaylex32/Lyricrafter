@@ -84,6 +84,38 @@ def apply_theme(app: QApplication) -> None:
             padding: 9px 10px;
             font-size: 8.5pt;
         }
+        QScrollArea#SettingsScroll {
+            background: transparent;
+            border: 0;
+        }
+        QScrollArea#SettingsScroll > QWidget > QWidget {
+            background: transparent;
+        }
+        QPushButton#PerformanceModeButton {
+            background: #11161c;
+            border: 1px solid #2c3641;
+            color: #9eabb8;
+            padding: 7px 8px;
+            min-height: 22px;
+        }
+        QPushButton#PerformanceModeButton:hover {
+            background: #18212b;
+            border-color: #4b78a8;
+            color: #eef5fc;
+        }
+        QPushButton#PerformanceModeButton:checked {
+            background: #1d3955;
+            border-color: #5aa7ff;
+            color: #ffffff;
+        }
+        QLabel#ThreadValue {
+            background: #10161d;
+            border: 1px solid #2b3743;
+            border-radius: 5px;
+            color: #acd2ff;
+            padding: 5px 9px;
+            font-weight: 700;
+        }
         QStackedWidget#WorkspaceStack {
             background: #0f1216;
         }

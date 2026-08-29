@@ -12,7 +12,7 @@ ProgressCallback = Callable[[int, str], None]
 
 
 class WhisperModelFactory(Protocol):
-    def __call__(self, model_id: str, device: str, compute_type: str):
+    def __call__(self, model_id: str, device: str, compute_type: str, cpu_threads: int):
         ...
 
 
@@ -22,7 +22,7 @@ class FasterWhisperTranscriber:
         model_factory: WhisperModelFactory | None = None,
         model_manager: ModelManager | None = None,
     ) -> None:
-        self._model_key: tuple[str, str, str] | None = None
+        self._model_key: tuple[str, str, str, int] | None = None
         self._model = None
         self._model_factory = model_factory
         self._model_manager = model_manager or ModelManager()
@@ -44,7 +44,7 @@ class FasterWhisperTranscriber:
         compute_type = _resolve_compute_type(options.compute_type, device)
         attempts = [(device, compute_type)]
         if device == "cuda":
-            attempts.append(("cpu", "int8"))
+            attempts.append(("cpu", _resolve_compute_type(options.compute_type, "cpu")))
 
         last_error: Exception | None = None
         for attempt_index, (attempt_device, attempt_compute_type) in enumerate(attempts):
@@ -64,7 +64,8 @@ class FasterWhisperTranscriber:
                 self._model_key = None
                 self._model = None
                 if progress:
-                    progress(10, "CUDA runtime unavailable; retrying Whisper on CPU (int8)")
+                    fallback_compute = attempts[-1][1]
+                    progress(10, f"CUDA runtime unavailable; retrying Whisper on CPU ({fallback_compute})")
 
         raise RuntimeError(str(last_error) if last_error else "Transcription failed")
 
@@ -77,11 +78,21 @@ class FasterWhisperTranscriber:
         progress: ProgressCallback | None = None,
     ) -> TranscriptionResult:
         model_factory = self._get_model_factory()
-        model_key = (options.model_id, device, compute_type)
+        cpu_threads = options.cpu_threads if device == "cpu" else 0
+        model_key = (options.model_id, device, compute_type, cpu_threads)
         if self._model_key != model_key:
             if progress:
-                progress(8, f"Loading Whisper model: {options.model_id} on {device}")
-            self._model = model_factory(options.model_id, device=device, compute_type=compute_type)
+                thread_note = f" ({cpu_threads} threads)" if device == "cpu" and cpu_threads else ""
+                progress(
+                    8,
+                    f"Loading Whisper model: {options.model_id} on {device} / {compute_type}{thread_note}",
+                )
+            self._model = model_factory(
+                options.model_id,
+                device=device,
+                compute_type=compute_type,
+                cpu_threads=cpu_threads,
+            )
             self._model_key = model_key
 
         if progress:
@@ -144,13 +155,14 @@ class FasterWhisperTranscriber:
             ) from exc
         manager = self._model_manager
 
-        def create_model(model_id: str, device: str, compute_type: str):
+        def create_model(model_id: str, device: str, compute_type: str, cpu_threads: int):
             installed_path = manager.resolved_faster_whisper_path(model_id)
             model_source = str(installed_path) if installed_path else model_id
             return WhisperModel(
                 model_source,
                 device=device,
                 compute_type=compute_type,
+                cpu_threads=cpu_threads,
                 download_root=str(manager.faster_whisper_cache_dir()),
             )
 
@@ -165,10 +177,14 @@ def _resolve_device(device: str) -> str:
 
 def _resolve_compute_type(compute_type: str, device: str) -> str:
     if compute_type != "auto":
-        if device == "cpu" and compute_type in {"float16", "int8_float16"}:
-            return "int8"
+        if device == "cpu" and compute_type == "float16":
+            return "float32"
+        if device == "cpu" and compute_type == "int8_float16":
+            return "int8_float32"
         return compute_type
-    return "float16" if device == "cuda" else "int8"
+    # Lyricrafter is accuracy-first. CPU INT8 can alter marginal token and
+    # language decisions enough to noticeably degrade difficult sung vocals.
+    return "float16" if device == "cuda" else "float32"
 
 
 def _is_cuda_runtime_error(exc: Exception) -> bool:

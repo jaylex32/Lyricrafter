@@ -52,6 +52,8 @@ from app.core.jobs import AccuracyOptions, JobResult, JobStatus, LyricJob, Proce
 from app.core.config import default_online_download_dir
 from app.core.project import default_project_path, load_project, save_project
 from app.core.quality import QualityIssue, check_lyrics_quality, quality_label, quality_score
+from app.core.performance import CPU_PERFORMANCE_MODES, cpu_threads_for_mode, logical_cpu_count
+from app.core.resources import app_asset_path
 from app.core.shell import open_in_file_manager
 from app.core.youtube import (
     DEFAULT_FILENAME_TEMPLATE,
@@ -137,6 +139,18 @@ class MainWindow(QMainWindow):
         self.export_txt_enabled = _setting_bool(self.db.get_setting("export_txt", "true"), True)
         self.export_srt_enabled = _setting_bool(self.db.get_setting("export_srt", "false"), False)
         self.export_vtt_enabled = _setting_bool(self.db.get_setting("export_vtt", "false"), False)
+        self.logical_cpu_threads = logical_cpu_count()
+        saved_cpu_mode = self.db.get_setting("cpu_performance_mode", "auto") or "auto"
+        self.cpu_performance_mode = saved_cpu_mode if saved_cpu_mode in CPU_PERFORMANCE_MODES else "auto"
+        try:
+            saved_custom_threads = int(self.db.get_setting("cpu_custom_threads", "0") or 0)
+        except ValueError:
+            saved_custom_threads = 0
+        self.cpu_custom_threads = cpu_threads_for_mode(
+            "custom",
+            saved_custom_threads or cpu_threads_for_mode("auto", logical_threads=self.logical_cpu_threads),
+            self.logical_cpu_threads,
+        )
         self.catalog = ModelCatalog()
         self.model_manager = ModelManager()
         self.engine = LyricrafterEngine(model_manager=self.model_manager)
@@ -272,13 +286,15 @@ class MainWindow(QMainWindow):
         page: QWidget,
         label: str,
         icon: QStyle.StandardPixmap,
+        asset_name: str,
     ) -> None:
         index = self.tabs.addWidget(page)
         button = QPushButton(label)
         button.setObjectName("NavigationButton")
         button.setCheckable(True)
-        button.setIcon(self.style().standardIcon(icon))
-        button.setIconSize(QSize(18, 18))
+        asset_icon = QIcon(str(app_asset_path(f"icons/{asset_name}")))
+        button.setIcon(asset_icon if not asset_icon.isNull() else self.style().standardIcon(icon))
+        button.setIconSize(QSize(19, 19))
         button.setShortcut(f"Ctrl+{index + 1}")
         button.setToolTip(f"Open {label} (Ctrl+{index + 1})")
         button.clicked.connect(lambda _checked=False, page_index=index: self._set_workspace_page(page_index))
@@ -470,7 +486,11 @@ class MainWindow(QMainWindow):
         self.device_combo.addItems(["auto", "cpu", "cuda"])
         self.device_combo.setToolTip("Use auto unless CUDA is fully installed. CPU is slower but reliable.")
         self.compute_combo = QComboBox()
-        self.compute_combo.addItems(["auto", "float16", "int8_float16", "int8", "float32"])
+        self.compute_combo.addItems(["auto", "float16", "float32", "int8_float16", "int8_float32", "int8"])
+        self.compute_combo.setToolTip(
+            "Auto preserves quality with float16 on CUDA and float32 on CPU. "
+            "INT8 modes use less memory but can reduce recognition accuracy on difficult vocals."
+        )
         self.language_combo = QComboBox()
         self.language_combo.addItem("Auto detect", None)
         for code in ["en", "es", "fr", "de", "it", "pt", "ja", "ko", "zh"]:
@@ -564,7 +584,7 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 0)
         splitter.setSizes([880, 390])
-        self._add_workspace_page(tab, "Queue", QStyle.SP_FileDialogListView)
+        self._add_workspace_page(tab, "Queue", QStyle.SP_FileDialogListView, "list_8800.svg")
 
     def _filter_queue_rows(self, text: str) -> None:
         needle = text.strip().casefold()
@@ -943,7 +963,7 @@ class MainWindow(QMainWindow):
         stamp_action.setShortcut("F8")
         stamp_action.triggered.connect(self.stamp_selected_line_and_advance)
         self.addAction(stamp_action)
-        self._add_workspace_page(tab, "Editor", QStyle.SP_FileDialogDetailedView)
+        self._add_workspace_page(tab, "Editor", QStyle.SP_FileDialogDetailedView, "editor_qwy6uhbxcr1i.svg")
 
     def _build_editor_options_panel(self, *edit_buttons: QPushButton) -> QWidget:
         nudge_back, nudge_forward, split_btn, merge_btn, embed_btn, save_btn = edit_buttons
@@ -1317,7 +1337,7 @@ class MainWindow(QMainWindow):
         actions.addWidget(open_models_btn)
         actions.addStretch(1)
         layout.addLayout(actions)
-        self._add_workspace_page(tab, "Models", QStyle.SP_DriveHDIcon)
+        self._add_workspace_page(tab, "Models", QStyle.SP_DriveHDIcon, "models_q48f9jpnpu0e.svg")
 
     def _build_history_tab(self) -> None:
         tab = QWidget()
@@ -1344,7 +1364,7 @@ class MainWindow(QMainWindow):
         actions.addWidget(clear_history_btn)
         actions.addStretch(1)
         layout.addLayout(actions)
-        self._add_workspace_page(tab, "History", QStyle.SP_BrowserReload)
+        self._add_workspace_page(tab, "History", QStyle.SP_BrowserReload, "history_10058.svg")
 
     def _build_settings_tab(self) -> None:
         tab = QWidget()
@@ -1356,6 +1376,15 @@ class MainWindow(QMainWindow):
             "Preferences",
             "Configure storage, online imports, lyric sources, and export formats.",
         )
+        self.settings_scroll = QScrollArea()
+        self.settings_scroll.setObjectName("SettingsScroll")
+        self.settings_scroll.setWidgetResizable(True)
+        self.settings_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.settings_scroll.setFrameStyle(0)
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(0, 2, 8, 4)
+        body_layout.setSpacing(12)
         defaults = QGroupBox("Defaults")
         form = QFormLayout(defaults)
         self.model_dir_label = QLabel(str(self.model_manager.model_dir))
@@ -1387,7 +1416,8 @@ class MainWindow(QMainWindow):
         form.addRow("", open_online_dir)
         form.addRow("Online audio format", self.settings_online_format_combo)
         form.addRow("Online filename", self.settings_filename_preset_combo)
-        layout.addWidget(defaults)
+        body_layout.addWidget(defaults)
+        body_layout.addWidget(self._build_cpu_performance_group())
         sources = QGroupBox("Sources")
         sources_layout = QHBoxLayout(sources)
         self.settings_lrclib_check = QCheckBox("LRCLIB")
@@ -1415,7 +1445,7 @@ class MainWindow(QMainWindow):
             checkbox.stateChanged.connect(self._save_source_settings)
             sources_layout.addWidget(checkbox)
         sources_layout.addStretch(1)
-        layout.addWidget(sources)
+        body_layout.addWidget(sources)
         outputs = QGroupBox("Outputs")
         outputs_layout = QHBoxLayout(outputs)
         self.settings_export_lrc_check = QCheckBox("LRC")
@@ -1439,9 +1469,113 @@ class MainWindow(QMainWindow):
             checkbox.stateChanged.connect(self._save_output_settings)
             outputs_layout.addWidget(checkbox)
         outputs_layout.addStretch(1)
-        layout.addWidget(outputs)
-        layout.addStretch(1)
-        self._add_workspace_page(tab, "Settings", QStyle.SP_FileDialogContentsView)
+        body_layout.addWidget(outputs)
+        body_layout.addStretch(1)
+        self.settings_scroll.setWidget(body)
+        layout.addWidget(self.settings_scroll, 1)
+        self._add_workspace_page(tab, "Settings", QStyle.SP_FileDialogContentsView, "settings_59996.svg")
+
+    def _build_cpu_performance_group(self) -> QGroupBox:
+        group = QGroupBox("CPU Performance")
+        layout = QVBoxLayout(group)
+        layout.setSpacing(10)
+
+        hardware = QLabel(f"Detected {self.logical_cpu_threads} logical processors")
+        hardware.setObjectName("Muted")
+        hardware.setToolTip("These controls affect faster-whisper transcription on CPU and CUDA fallback.")
+        layout.addWidget(hardware)
+
+        mode_row = QHBoxLayout()
+        mode_row.setSpacing(6)
+        self.cpu_mode_group = QButtonGroup(self)
+        self.cpu_mode_group.setExclusive(True)
+        self.cpu_mode_buttons: dict[str, QPushButton] = {}
+        mode_definitions = (
+            ("auto", "Auto", "Recommended balance of transcription speed and system responsiveness."),
+            ("background", "Background", "Lower CPU usage while you continue using the computer."),
+            ("balanced", "Balanced", "Moderate CPU usage with additional headroom for other applications."),
+            ("maximum", "Maximum", "Use every logical processor. This produces the most heat and may not scale linearly."),
+            ("custom", "Custom", "Choose an exact faster-whisper CPU thread count."),
+        )
+        for index, (mode, label, tooltip) in enumerate(mode_definitions):
+            button = QPushButton(label)
+            button.setObjectName("PerformanceModeButton")
+            button.setCheckable(True)
+            button.setToolTip(tooltip)
+            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            button.clicked.connect(
+                lambda checked=False, selected=mode: self._set_cpu_performance_mode(selected) if checked else None
+            )
+            self.cpu_mode_group.addButton(button, index)
+            self.cpu_mode_buttons[mode] = button
+            mode_row.addWidget(button)
+        layout.addLayout(mode_row)
+
+        thread_row = QHBoxLayout()
+        thread_row.setSpacing(10)
+        thread_label = QLabel("CPU threads")
+        thread_label.setMinimumWidth(82)
+        self.cpu_thread_slider = QSlider(Qt.Horizontal)
+        self.cpu_thread_slider.setRange(1, self.logical_cpu_threads)
+        self.cpu_thread_slider.setSingleStep(1)
+        self.cpu_thread_slider.setPageStep(max(1, self.logical_cpu_threads // 10))
+        self.cpu_thread_slider.valueChanged.connect(self._set_cpu_custom_threads)
+        self.cpu_thread_value = QLabel()
+        self.cpu_thread_value.setObjectName("ThreadValue")
+        self.cpu_thread_value.setMinimumWidth(112)
+        self.cpu_thread_value.setAlignment(Qt.AlignCenter)
+        thread_row.addWidget(thread_label)
+        thread_row.addWidget(self.cpu_thread_slider, 1)
+        thread_row.addWidget(self.cpu_thread_value)
+        layout.addLayout(thread_row)
+
+        self.cpu_performance_note = QLabel()
+        self.cpu_performance_note.setObjectName("Muted")
+        self.cpu_performance_note.setWordWrap(True)
+        layout.addWidget(self.cpu_performance_note)
+
+        selected_button = self.cpu_mode_buttons[self.cpu_performance_mode]
+        selected_button.setChecked(True)
+        self._refresh_cpu_performance_controls()
+        return group
+
+    def _set_cpu_performance_mode(self, mode: str) -> None:
+        if mode not in CPU_PERFORMANCE_MODES:
+            return
+        self.cpu_performance_mode = mode
+        self.db.set_setting("cpu_performance_mode", mode)
+        self._refresh_cpu_performance_controls()
+
+    def _set_cpu_custom_threads(self, value: int) -> None:
+        if self.cpu_performance_mode != "custom":
+            return
+        self.cpu_custom_threads = max(1, min(self.logical_cpu_threads, value))
+        self.db.set_setting("cpu_custom_threads", str(self.cpu_custom_threads))
+        self._refresh_cpu_performance_controls()
+
+    def _selected_cpu_threads(self) -> int:
+        return cpu_threads_for_mode(
+            self.cpu_performance_mode,
+            self.cpu_custom_threads,
+            self.logical_cpu_threads,
+        )
+
+    def _refresh_cpu_performance_controls(self) -> None:
+        threads = self._selected_cpu_threads()
+        custom = self.cpu_performance_mode == "custom"
+        self.cpu_thread_slider.blockSignals(True)
+        self.cpu_thread_slider.setValue(threads)
+        self.cpu_thread_slider.blockSignals(False)
+        self.cpu_thread_slider.setEnabled(custom)
+        self.cpu_thread_value.setText(f"{threads} / {self.logical_cpu_threads}")
+        notes = {
+            "auto": f"Recommended: Whisper will use {threads} threads and leave capacity for the interface and audio tools.",
+            "background": f"Whisper will use {threads} threads to keep the system responsive during long batches.",
+            "balanced": f"Whisper will use {threads} threads for moderate speed and multitasking headroom.",
+            "maximum": f"Whisper will use all {threads} logical processors. Expect higher power use, heat, and fan noise.",
+            "custom": f"Whisper will use exactly {threads} threads. Changes apply when the next model job starts.",
+        }
+        self.cpu_performance_note.setText(notes[self.cpu_performance_mode])
 
     def _load_settings(self) -> None:
         model_dir = self.db.get_setting("model_dir")
@@ -1469,6 +1603,8 @@ class MainWindow(QMainWindow):
         self.accuracy_preset = str(self.preset_combo.currentData() or "balanced")
         self.db.set_setting("accuracy_preset", self.accuracy_preset)
         self.db.set_setting("device", self.device_combo.currentText())
+        self.db.set_setting("cpu_performance_mode", self.cpu_performance_mode)
+        self.db.set_setting("cpu_custom_threads", str(self.cpu_custom_threads))
         self._save_online_download_settings()
         self._save_source_settings()
         self._save_output_settings()
@@ -1553,6 +1689,7 @@ class MainWindow(QMainWindow):
             language=self.language_combo.currentData(),
             device=self.device_combo.currentText(),
             compute_type=self.compute_combo.currentText(),
+            cpu_threads=self._selected_cpu_threads(),
             quality_preset=self.preset_combo.currentText(),
             vad_filter=self.vad_check.isChecked(),
             vocal_isolation=self.vocal_check.isChecked(),

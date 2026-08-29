@@ -69,7 +69,9 @@ For NVIDIA acceleration when running from source:
 .\scripts\enable_cuda.ps1
 ```
 
-Then set Device to `cuda` and Compute to `auto` or `float16`. CPU `int8` remains available as a fallback.
+Then set Device to `cuda` and Compute to `auto` or `float16`. Compute `auto` uses CUDA FP16 or CPU FP32 for comparable recognition quality; CPU INT8 remains available as an explicit lower-memory option.
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Tests And Packages
 

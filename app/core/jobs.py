@@ -33,6 +33,7 @@ class ProcessingOptions:
     language: str | None = None
     device: str = "auto"
     compute_type: str = "auto"
+    cpu_threads: int = 0
     quality_preset: str = "Balanced"
     vad_filter: bool = False
     vocal_isolation: bool = False
